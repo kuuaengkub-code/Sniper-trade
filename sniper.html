@@ -22,6 +22,8 @@
         .nav-btn { background: transparent; border: none; color: var(--text-sub); font-size: 1.5rem; margin-bottom: 20px; cursor: pointer; transition: 0.3s; padding: 15px; border-radius: 12px; }
         .nav-btn:hover { color: #fff; background: #1a1a24; }
         .nav-btn.active { color: #fff; background: var(--primary); box-shadow: 0 0 15px var(--primary-fade); }
+        .nav-btn-action { color: #f39c12; }
+        .nav-btn-action:hover { background: rgba(243, 156, 18, 0.2); }
         .nav-btn-danger { margin-top: auto; margin-bottom: 20px; color: var(--loss); }
         .nav-btn-danger:hover { background: var(--loss-fade); }
 
@@ -88,6 +90,11 @@
     <div class="sidebar">
         <button class="nav-btn active" onclick="switchTab('dashboard')" title="Dashboard"><i class="fas fa-chart-pie"></i></button>
         <button class="nav-btn" onclick="switchTab('calendar')" title="Calendar & Log"><i class="fas fa-calendar-alt"></i></button>
+        
+        <button class="nav-btn nav-btn-action" onclick="exportData()" title="Backup Data (ดาวน์โหลด)"><i class="fas fa-download"></i></button>
+        <button class="nav-btn nav-btn-action" onclick="document.getElementById('import-file').click()" title="Restore Data (อัปโหลด)"><i class="fas fa-upload"></i></button>
+        <input type="file" id="import-file" style="display:none" accept=".json" onchange="importData(event)">
+
         <button class="nav-btn nav-btn-danger" onclick="hardReset()" title="Reset All Data"><i class="fas fa-trash-alt"></i></button>
     </div>
 
@@ -208,18 +215,13 @@
         const START_CAPITAL = 20.0;
         let charts = {}; 
         
-        // 🛠️ 1. ระบบดึงและทำความสะอาดข้อมูลอัตโนมัติ (Sanitize Data)
         let rawData = JSON.parse(localStorage.getItem('sniperZellaData')) || [];
-        // กรองเอาเฉพาะข้อมูลที่สมบูรณ์เท่านั้น ป้องกันแอปพังจากบั๊กเก่า
         let journalData = rawData.filter(entry => 
-            entry && 
-            typeof entry.date === 'string' && entry.date.includes('-') &&
+            entry && typeof entry.date === 'string' && entry.date.includes('-') &&
             typeof entry.actual === 'number' && !isNaN(entry.actual)
         );
-        // เซฟข้อมูลที่สะอาดกลับเข้าไปใหม่
         localStorage.setItem('sniperZellaData', JSON.stringify(journalData));
 
-        // 🛠️ 2. ระบบตั้งค่าวันที่ให้อัตโนมัติและปลอดภัย
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -229,7 +231,6 @@
         document.getElementById('sel-month').value = mm;
         document.getElementById('sel-year').value = yyyy.toString();
 
-        // 🚀 เริ่มวาดหน้าจอ
         renderAll();
 
         function switchTab(tabId) {
@@ -243,7 +244,46 @@
             }
         }
 
-        // ปุ่มล้างข้อมูลเผื่ออยากเริ่มใหม่
+        // --- ฟังก์ชัน Backup / Restore ---
+        function exportData() {
+            if(journalData.length === 0) {
+                alert("ย้งไม่มีข้อมูลให้ดาวน์โหลดครับ");
+                return;
+            }
+            const dataStr = JSON.stringify(journalData);
+            const blob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `sniper_backup_${yyyy}${mm}${dd}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if(Array.isArray(importedData)) {
+                        journalData = importedData;
+                        localStorage.setItem('sniperZellaData', JSON.stringify(journalData));
+                        renderAll();
+                        alert("✅ โหลดข้อมูลกลับมาสำเร็จเรียบร้อยครับ!");
+                    } else {
+                        alert("❌ ไฟล์ไม่ถูกต้องครับ");
+                    }
+                } catch(err) {
+                    alert("❌ เกิดข้อผิดพลาดในการอ่านไฟล์");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // รีเซ็ต input เผื่ออัปโหลดไฟล์เดิมซ้ำ
+        }
+
         function hardReset() {
             if(confirm("⚠️ คำเตือน: คุณต้องการลบสถิติทั้งหมดและเริ่มพอร์ตใหม่ใช่หรือไม่? (ย้อนกลับไม่ได้นะ)")) {
                 localStorage.removeItem('sniperZellaData');
@@ -258,10 +298,7 @@
             const target = parseFloat(document.getElementById('input-target').value) || 0;
             const actualInput = document.getElementById('input-actual').value;
             
-            if(!dateStr || actualInput === "") { 
-                alert("⚠️ กรุณาใส่วันที่ และ Net P&L ให้ครบครับ!"); 
-                return; 
-            }
+            if(!dateStr || actualInput === "") { alert("⚠️ กรุณาใส่วันที่ และ Net P&L ให้ครบครับ!"); return; }
 
             const actual = parseFloat(actualInput);
             if(isNaN(actual)) { alert("⚠️ กรุณาใส่ตัวเลขในช่อง Net P&L ครับ"); return; }
@@ -279,7 +316,6 @@
             localStorage.setItem('sniperZellaData', JSON.stringify(journalData));
             
             document.getElementById('input-actual').value = ""; 
-            
             renderAll();
         }
 
@@ -291,7 +327,6 @@
             }
         }
 
-        // 🛠️ 3. ป้องกันแอปพัง (Try-Catch) ในการวาดจอ
         function renderAll() {
             try {
                 processStats();
@@ -317,7 +352,6 @@
 
             journalData.forEach((entry, i) => {
                 gBalance += entry.actual;
-                // ดึงเฉพาะวันที่ MM-DD ป้องกัน Error ถ้า date ไม่สมบูรณ์
                 let displayDate = entry.date.length >= 10 ? entry.date.substring(5) : entry.date;
                 chartDates.push(displayDate); 
                 chartBalances.push(gBalance);
