@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sniper Pro Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-deep: #0c0c0e; --bg-card: #14141a; --border-color: #2b3a4a;
+            --text-main: #e0e6ed; --text-sub: #8b9bb4;
+            --primary: #3498db; --primary-fade: rgba(52, 152, 219, 0.2);
+            --profit: #2ecc71; --profit-fade: rgba(46, 204, 113, 0.15);
+            --loss: #e74c3c; --loss-fade: rgba(231, 76, 60, 0.15);
+            --neutral: #2c3e50;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-deep); color: var(--text-main); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        .sidebar { width: 80px; background: #08080a; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; align-items: center; padding-top: 20px; z-index: 10; flex-shrink: 0; }
+        .nav-btn { background: transparent; border: none; color: var(--text-sub); font-size: 1.5rem; margin-bottom: 20px; cursor: pointer; transition: 0.3s; padding: 15px; border-radius: 12px; }
+        .nav-btn:hover { color: #fff; background: #1a1a24; }
+        .nav-btn.active { color: #fff; background: var(--primary); box-shadow: 0 0 15px var(--primary-fade); }
+        .nav-btn-danger { margin-top: auto; margin-bottom: 20px; color: var(--loss); }
+        .nav-btn-danger:hover { background: var(--loss-fade); }
+
+        .main-content { flex-grow: 1; padding: 20px; overflow-y: auto; }
+        .view-section { display: none; animation: fadeIn 0.3s ease; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 20px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
+        .card-header h2 { margin: 0; font-size: 1rem; color: #fff; }
+
+        .top-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; display: flex; align-items: center; justify-content: space-between; }
+        .stat-info h3 { margin: 0; font-size: 0.8rem; color: var(--text-sub); font-weight: normal; }
+        .stat-info p { margin: 5px 0 0 0; font-size: 1.5rem; font-weight: bold; }
+        .stat-icon { font-size: 2rem; opacity: 0.2; }
+        .text-green { color: var(--profit); } .text-red { color: var(--loss); }
+
+        .dash-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .chart-wrapper { position: relative; height: 220px; width: 100%; }
+
+        .tracker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .track-box { aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; background: var(--neutral); }
+
+        .calendar-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        
+        .cal-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; color: var(--text-sub); font-size: 0.8rem; margin-bottom: 10px; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; min-height: 400px; }
+        .cal-day { aspect-ratio: 1; background: #1a1a22; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; position: relative; }
+        .cal-day.empty { background: rgba(26, 26, 34, 0.3); border: 1px dashed var(--border-color); opacity: 0.5; }
+        .cal-date { font-size: 0.8rem; color: var(--text-sub); }
+        .cal-pl { margin: auto 0; font-size: 1.2rem; font-weight: bold; text-align: center; }
+        .cal-meta { font-size: 0.7rem; color: var(--text-sub); text-align: center; }
+        .cal-target-icon { position: absolute; top: 8px; right: 8px; font-size: 1rem; }
+
+        .bg-profit { background: var(--profit-fade); border-color: var(--profit); }
+        .bg-loss { background: var(--loss-fade); border-color: var(--loss); }
+
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 5px; }
+        .form-group input, .form-group select { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 5px; border: 1px solid var(--border-color); background: #1a1a22; color: #fff; outline: none; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; background: var(--primary); color: #fff; }
+
+        .week-box { background: #1a1a22; border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 4px solid var(--primary); }
+        .week-box h4 { margin: 0 0 5px 0; font-size: 0.85rem; color: var(--text-sub); }
+        .week-box .val { font-size: 1.2rem; font-weight: bold; }
+        .week-meta { font-size: 0.75rem; color: var(--text-sub); margin-top: 5px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { color: var(--text-sub); }
+        .btn-del { background: none; border: none; color: var(--loss); cursor: pointer; font-size: 1rem; }
+
+        @media (max-width: 1024px) {
+            .dash-grid { grid-template-columns: 1fr; }
+            .calendar-layout { grid-template-columns: 1fr; }
+            .top-stats { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <button class="nav-btn active" onclick="switchTab('dashboard')" title="Dashboard"><i class="fas fa-chart-pie"></i></button>
+        <button class="nav-btn" onclick="switchTab('calendar')" title="Calendar & Log"><i class="fas fa-calendar-alt"></i></button>
+        <button class="nav-btn nav-btn-danger" onclick="hardReset()" title="Reset All Data"><i class="fas fa-trash-alt"></i></button>
+    </div>
+
+    <div class="main-content">
+        
+        <div id="tab-dashboard" class="view-section active">
+            <h1 style="margin-top: 0; font-size: 1.5rem;">Dashboard</h1>
+            
+            <div class="top-stats">
+                <div class="stat-card">
+                    <div class="stat-info"><h3>Account Balance</h3><p id="kpi-balance" class="text-green">$20.00</p></div>
+                    <i class="fas fa-wallet stat-icon" style="color: var(--primary)"></i>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info"><h3>Net P&L</h3><p id="kpi-pl">$0.00</p></div>
+                    <i class="fas fa-chart-line stat-icon"></i>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info"><h3>Trade Win %</h3><p id="kpi-tradewin">0.00%</p></div>
+                    <i class="fas fa-crosshairs stat-icon"></i>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info"><h3>Day Win %</h3><p id="kpi-daywin">0.00%</p></div>
+                    <i class="fas fa-calendar-check stat-icon"></i>
+                </div>
+            </div>
+
+            <div class="dash-grid">
+                <div class="card">
+                    <div class="card-header"><h2>Zella Score</h2></div>
+                    <div class="chart-wrapper"><canvas id="radarChart"></canvas></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Progress Tracker</h2></div>
+                    <div class="tracker-grid" id="tracker-grid"></div>
+                    <div style="text-align: center; margin-top: 15px; font-size: 0.75rem; color: var(--text-sub);">
+                        <span style="color:var(--profit)">Green</span> = Profit | <span style="color:var(--loss)">Red</span> = Loss | 🎯 = Target Met
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Daily Net Cumulative P&L</h2></div>
+                    <div class="chart-wrapper"><canvas id="areaChart"></canvas></div>
+                </div>
+
+                <div class="card" style="grid-column: span 2;">
+                    <div class="card-header"><h2>Net Daily P&L</h2></div>
+                    <div class="chart-wrapper"><canvas id="barChart"></canvas></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Trade Performance</h2></div>
+                    <div class="chart-wrapper"><canvas id="scatterChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-calendar" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h1 style="margin: 0; font-size: 1.5rem;">Trading Calendar</h1>
+                
+                <div style="display: flex; gap: 5px;">
+                    <select id="sel-month" onchange="renderAll()" style="background: #1a1a22; color: #fff; border: 1px solid var(--border-color); padding: 8px; border-radius: 5px; outline:none;">
+                        <option value="01">Jan</option><option value="02">Feb</option><option value="03">Mar</option>
+                        <option value="04">Apr</option><option value="05">May</option><option value="06">Jun</option>
+                        <option value="07">Jul</option><option value="08">Aug</option><option value="09">Sep</option>
+                        <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+                    </select>
+                    <select id="sel-year" onchange="renderAll()" style="background: #1a1a22; color: #fff; border: 1px solid var(--border-color); padding: 8px; border-radius: 5px; outline:none;">
+                        <option value="2026">2026</option><option value="2027">2027</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="calendar-layout">
+                <div>
+                    <div class="card">
+                        <div class="cal-header">
+                            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                        </div>
+                        <div class="cal-grid" id="calendar-grid"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header"><h2><i class="fas fa-plus"></i> Add Trade Log</h2></div>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Date (ด/ว/ป)</label><input type="date" id="input-date"></div>
+                            <div class="form-group"><label>Target (Auto 10%)</label><input type="number" id="input-target" step="0.01"></div>
+                            <div class="form-group"><label>Net P&L ($) *ใส่ลบถ้าขาดทุน</label><input type="number" id="input-actual" step="0.01" placeholder="เช่น 10.5 หรือ -3"></div>
+                            <div class="form-group"><label>Total Trades Today</label><input type="number" id="input-trades" value="1" min="1"></div>
+                            <div class="form-group"><label>Winning Trades</label><input type="number" id="input-wins" value="1" min="0"></div>
+                        </div>
+                        <button class="btn" onclick="saveData()"><i class="fas fa-save"></i> Save Trade Data</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header"><h2>Recent Trades (ประวัติการเทรด)</h2></div>
+                        <table>
+                            <thead>
+                                <tr><th>Date</th><th>Target</th><th>Net P&L</th><th>Status</th><th>Del</th></tr>
+                            </thead>
+                            <tbody id="history-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card" style="align-self: start;">
+                    <div class="card-header"><h2>Weekly Summary</h2></div>
+                    <div id="weekly-sidebar"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const START_CAPITAL = 20.0;
+        let charts = {}; 
+        
+        // 🛠️ 1. ระบบดึงและทำความสะอาดข้อมูลอัตโนมัติ (Sanitize Data)
+        let rawData = JSON.parse(localStorage.getItem('sniperZellaData')) || [];
+        // กรองเอาเฉพาะข้อมูลที่สมบูรณ์เท่านั้น ป้องกันแอปพังจากบั๊กเก่า
+        let journalData = rawData.filter(entry => 
+            entry && 
+            typeof entry.date === 'string' && entry.date.includes('-') &&
+            typeof entry.actual === 'number' && !isNaN(entry.actual)
+        );
+        // เซฟข้อมูลที่สะอาดกลับเข้าไปใหม่
+        localStorage.setItem('sniperZellaData', JSON.stringify(journalData));
+
+        // 🛠️ 2. ระบบตั้งค่าวันที่ให้อัตโนมัติและปลอดภัย
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        
+        document.getElementById('input-date').value = `${yyyy}-${mm}-${dd}`;
+        document.getElementById('sel-month').value = mm;
+        document.getElementById('sel-year').value = yyyy.toString();
+
+        // 🚀 เริ่มวาดหน้าจอ
+        renderAll();
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+            
+            if(tabId === 'dashboard') {
+                Object.values(charts).forEach(c => { if(c) c.resize(); });
+            }
+        }
+
+        // ปุ่มล้างข้อมูลเผื่ออยากเริ่มใหม่
+        function hardReset() {
+            if(confirm("⚠️ คำเตือน: คุณต้องการลบสถิติทั้งหมดและเริ่มพอร์ตใหม่ใช่หรือไม่? (ย้อนกลับไม่ได้นะ)")) {
+                localStorage.removeItem('sniperZellaData');
+                journalData = [];
+                renderAll();
+                alert("ล้างข้อมูลสำเร็จ! เริ่มต้นนับหนึ่งใหม่ครับ");
+            }
+        }
+
+        function saveData() {
+            const dateStr = document.getElementById('input-date').value;
+            const target = parseFloat(document.getElementById('input-target').value) || 0;
+            const actualInput = document.getElementById('input-actual').value;
+            
+            if(!dateStr || actualInput === "") { 
+                alert("⚠️ กรุณาใส่วันที่ และ Net P&L ให้ครบครับ!"); 
+                return; 
+            }
+
+            const actual = parseFloat(actualInput);
+            if(isNaN(actual)) { alert("⚠️ กรุณาใส่ตัวเลขในช่อง Net P&L ครับ"); return; }
+
+            const totalTrades = parseInt(document.getElementById('input-trades').value) || 1;
+            const winTrades = parseInt(document.getElementById('input-wins').value) || 0;
+
+            const entry = { date: dateStr, target, actual, totalTrades, winTrades };
+            
+            const index = journalData.findIndex(item => item.date === dateStr);
+            if(index >= 0) journalData[index] = entry;
+            else journalData.push(entry);
+
+            journalData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            localStorage.setItem('sniperZellaData', JSON.stringify(journalData));
+            
+            document.getElementById('input-actual').value = ""; 
+            
+            renderAll();
+        }
+
+        function deleteEntry(index) {
+            if(confirm("ต้องการลบข้อมูลไม้นี้ใช่หรือไม่?")) {
+                journalData.splice(index, 1);
+                localStorage.setItem('sniperZellaData', JSON.stringify(journalData));
+                renderAll();
+            }
+        }
+
+        // 🛠️ 3. ป้องกันแอปพัง (Try-Catch) ในการวาดจอ
+        function renderAll() {
+            try {
+                processStats();
+                renderCalendar();
+                renderDashboardCharts();
+            } catch (error) {
+                console.error("Rendering Error:", error);
+            }
+        }
+
+        let gBalance = START_CAPITAL, gNetPL = 0, gDayWinRate = 0, gTradeWinRate = 0, gProfitFactor = 0;
+        let chartDates = [], chartBalances = [START_CAPITAL], chartDailyPL = [], scatterData = [];
+
+        function processStats() {
+            gBalance = START_CAPITAL;
+            let totalProfit = 0, totalLoss = 0, winDays = 0, totalDays = 0, globalWinTrades = 0, globalTotalTrades = 0;
+            
+            chartDates = []; chartBalances = [START_CAPITAL]; chartDailyPL = []; scatterData = [];
+            const trackerGrid = document.getElementById('tracker-grid');
+            if(trackerGrid) trackerGrid.innerHTML = '';
+            const historyTbody = document.getElementById('history-table');
+            if(historyTbody) historyTbody.innerHTML = '';
+
+            journalData.forEach((entry, i) => {
+                gBalance += entry.actual;
+                // ดึงเฉพาะวันที่ MM-DD ป้องกัน Error ถ้า date ไม่สมบูรณ์
+                let displayDate = entry.date.length >= 10 ? entry.date.substring(5) : entry.date;
+                chartDates.push(displayDate); 
+                chartBalances.push(gBalance);
+                chartDailyPL.push(entry.actual);
+                scatterData.push({ x: i + 1, y: entry.actual });
+
+                if(entry.actual !== 0) totalDays++;
+                if(entry.actual > 0) { winDays++; totalProfit += entry.actual; }
+                if(entry.actual < 0) { totalLoss += Math.abs(entry.actual); }
+
+                globalTotalTrades += (entry.totalTrades || 1);
+                globalWinTrades += (entry.winTrades !== undefined ? entry.winTrades : (entry.actual > 0 ? 1 : 0));
+
+                const isTarget = entry.actual >= entry.target && entry.actual > 0;
+                if(trackerGrid) {
+                    trackerGrid.innerHTML += `<div class="track-box ${entry.actual > 0 ? 'bg-profit' : (entry.actual < 0 ? 'bg-loss' : '')}">${isTarget ? '🎯' : ''}</div>`;
+                }
+                
+                if(historyTbody) {
+                    historyTbody.insertAdjacentHTML('afterbegin', `
+                        <tr>
+                            <td>${entry.date}</td>
+                            <td>$${entry.target.toFixed(2)}</td>
+                            <td class="${entry.actual > 0 ? 'text-green' : 'text-red'}"><b>${entry.actual > 0 ? '+' : ''}$${entry.actual.toFixed(2)}</b></td>
+                            <td>${isTarget ? '🎯 ทะลุเป้า' : (entry.actual > 0 ? '🟢 กำไร' : '🔴 ขาดทุน')}</td>
+                            <td><button class="btn-del" onclick="deleteEntry(${i})"><i class="fas fa-trash"></i></button></td>
+                        </tr>
+                    `);
+                }
+            });
+
+            gNetPL = gBalance - START_CAPITAL;
+            gDayWinRate = totalDays > 0 ? ((winDays / totalDays) * 100).toFixed(2) : 0;
+            gTradeWinRate = globalTotalTrades > 0 ? ((globalWinTrades / globalTotalTrades) * 100).toFixed(2) : 0;
+            gProfitFactor = totalLoss > 0 ? (totalProfit / totalLoss).toFixed(2) : (totalProfit > 0 ? 'MAX' : '0.00');
+
+            document.getElementById('kpi-balance').innerText = `$${gBalance.toFixed(2)}`;
+            document.getElementById('kpi-pl').innerText = `${gNetPL >= 0 ? '+' : ''}$${gNetPL.toFixed(2)}`;
+            document.getElementById('kpi-pl').className = gNetPL >= 0 ? 'text-green' : 'text-red';
+            document.getElementById('kpi-daywin').innerText = `${gDayWinRate}%`;
+            document.getElementById('kpi-tradewin').innerText = `${gTradeWinRate}%`;
+            document.getElementById('input-target').value = Math.max(1.0, gBalance * 0.10).toFixed(2);
+        }
+
+        function renderCalendar() {
+            const calGrid = document.getElementById('calendar-grid');
+            const weekSidebar = document.getElementById('weekly-sidebar');
+            if(!calGrid || !weekSidebar) return;
+            calGrid.innerHTML = ''; weekSidebar.innerHTML = '';
+
+            const year = parseInt(document.getElementById('sel-year').value);
+            const month = parseInt(document.getElementById('sel-month').value);
+            const selectedMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+            const firstDayIndex = new Date(year, month - 1, 1).getDay(); 
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            const monthData = {};
+            journalData.forEach(entry => {
+                if(entry.date.startsWith(selectedMonthStr)) {
+                    const parts = entry.date.split('-');
+                    if(parts.length >= 3) {
+                        const day = parseInt(parts[2]);
+                        monthData[day] = entry;
+                    }
+                }
+            });
+
+            let currentWeek = 1, weekPL = 0, weekWinDays = 0, weekDaysTraded = 0;
+
+            function flushWeek() {
+                if(weekDaysTraded > 0 || currentWeek === 1) { 
+                    let wRate = weekDaysTraded > 0 ? ((weekWinDays/weekDaysTraded)*100).toFixed(0) : 0;
+                    weekSidebar.innerHTML += `
+                        <div class="week-box">
+                            <h4>Week ${currentWeek}</h4>
+                            <div class="val ${weekPL >= 0 ? 'text-green' : 'text-red'}">${weekPL > 0 ? '+' : ''}$${weekPL.toFixed(2)}</div>
+                            <div class="week-meta">${weekDaysTraded} days | Winrate: ${wRate}%</div>
+                        </div>
+                    `;
+                }
+                currentWeek++; weekPL = 0; weekWinDays = 0; weekDaysTraded = 0;
+            }
+
+            for(let i = 0; i < firstDayIndex; i++) { calGrid.innerHTML += `<div class="cal-day empty"></div>`; }
+
+            for(let day = 1; day <= daysInMonth; day++) {
+                const dayOfWeek = new Date(year, month - 1, day).getDay();
+                let bgClass = '', content = '', targetIcon = '';
+                
+                if(monthData[day]) {
+                    const d = monthData[day];
+                    const isTarget = d.actual >= d.target && d.actual > 0;
+                    if(d.actual > 0) bgClass = 'bg-profit'; else if(d.actual < 0) bgClass = 'bg-loss';
+                    if(isTarget) targetIcon = '<div class="cal-target-icon">🎯</div>';
+                    
+                    content = `
+                        ${targetIcon}
+                        <div class="cal-pl ${d.actual > 0 ? 'text-green' : 'text-red'}">${d.actual > 0 ? '+' : ''}$${Math.abs(d.actual).toFixed(2)}</div>
+                        <div class="cal-meta">${d.totalTrades || 1} trades</div>
+                    `;
+                    weekPL += d.actual; weekDaysTraded++; if(d.actual > 0) weekWinDays++;
+                }
+
+                calGrid.innerHTML += `<div class="cal-day ${bgClass}"><div class="cal-date">${day}</div>${content}</div>`;
+                if(dayOfWeek === 6 || day === daysInMonth) flushWeek();
+            }
+            
+            const totalCells = firstDayIndex + daysInMonth;
+            for(let i=0; i < ((7 - (totalCells % 7)) % 7); i++) { calGrid.innerHTML += `<div class="cal-day empty"></div>`; }
+        }
+
+        function renderDashboardCharts() {
+            if (typeof Chart === 'undefined') return; 
+            Chart.defaults.color = '#8b9bb4'; Chart.defaults.borderColor = '#2b3a4a';
+            const recreateCanvas = (id) => { 
+                if(charts[id]) charts[id].destroy(); 
+                const el = document.getElementById(id);
+                return el ? el.getContext('2d') : null; 
+            };
+
+            let scWin = Math.min(100, gTradeWinRate);
+            let scPF = gProfitFactor === 'MAX' ? 100 : Math.min(100, parseFloat(gProfitFactor) * 25);
+            let scConsist = Math.min(100, (chartDailyPL.length * 5)); 
+            let scDD = 90; 
+            let scRec = gNetPL > 0 ? 85 : 40; 
+            
+            let ctxRadar = recreateCanvas('radarChart');
+            if(ctxRadar) {
+                charts['radar'] = new Chart(ctxRadar, {
+                    type: 'radar',
+                    data: { labels: ['Win %', 'Profit Factor', 'Consistency', 'Max DD', 'Recovery'], datasets: [{ data: [scWin, scPF, scConsist, scDD, scRec], backgroundColor: 'rgba(52, 152, 219, 0.4)', borderColor: '#3498db', pointBackgroundColor: '#fff' }] },
+                    options: { maintainAspectRatio: false, scales: { r: { min: 0, max: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+                });
+            }
+
+            let ctxArea = recreateCanvas('areaChart');
+            if(ctxArea) {
+                charts['area'] = new Chart(ctxArea, {
+                    type: 'line', data: { labels: ['Start', ...chartDates], datasets: [{ data: chartBalances, borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.2)', fill: true, tension: 0.3 }] },
+                    options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            }
+
+            let ctxBar = recreateCanvas('barChart');
+            if(ctxBar) {
+                charts['bar'] = new Chart(ctxBar, {
+                    type: 'bar', data: { labels: chartDates, datasets: [{ data: chartDailyPL, backgroundColor: chartDailyPL.map(v => v >= 0 ? '#2ecc71' : '#e74c3c') }] },
+                    options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            }
+
+            let ctxScatter = recreateCanvas('scatterChart');
+            if(ctxScatter) {
+                charts['scatter'] = new Chart(ctxScatter, {
+                    type: 'scatter', data: { datasets: [{ data: scatterData, backgroundColor: scatterData.map(d => d.y >= 0 ? '#2ecc71' : '#e74c3c'), pointRadius: 6 }] },
+                    options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
